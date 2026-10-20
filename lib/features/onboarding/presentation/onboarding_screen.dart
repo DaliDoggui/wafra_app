@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../main_layout.dart';
+import '../../auth/presentation/login_screen.dart';
 
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
@@ -16,11 +16,13 @@ class OnboardingScreen extends StatelessWidget {
             children: [
               const Spacer(),
 
-              // Official Wafra Logo Image
               Image.asset(
                 'assets/images/wafra_logo.png',
                 height: 180,
                 fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) =>
+                    const Icon(Icons.shopping_bag_outlined,
+                        size: 80, color: AppColors.primaryBlue),
               ),
 
               const Spacer(),
@@ -53,7 +55,7 @@ class OnboardingScreen extends StatelessWidget {
                 onPressed: () {
                   Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (_) => const MainLayout()),
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
                   );
                 },
                 style: ElevatedButton.styleFrom(

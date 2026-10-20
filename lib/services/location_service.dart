@@ -1,4 +1,7 @@
 import 'package:geolocator/geolocator.dart';
+import '../core/network/api_client.dart';
+import '../core/localization/app_locale.dart';
+import 'system_notification_service.dart';
 
 class LocationService {
   /// Check permissions and get current GPS location
@@ -32,5 +35,36 @@ class LocationService {
       branchLng,
     );
     return distanceInMeters <= maxDistanceMeters;
+  }
+
+  /// Sends user GPS to backend geofencing engine to detect in-range partner stores
+  Future<Map<String, dynamic>?> syncLocationWithBackend() async {
+    try {
+      Position? pos = await getCurrentLocation();
+      double lat = pos?.latitude ?? 29.3759;
+      double lng = pos?.longitude ?? 47.9774;
+
+      final res = await ApiClient.instance.checkGeolocationProximity(lat, lng);
+      if (res != null && (res["in_range_count"] as num? ?? 0) > 0) {
+        final inRange = res["in_range_offers"] as List?;
+        if (inRange != null && inRange.isNotEmpty) {
+          final first = inRange.first as Map<String, dynamic>;
+          final brand = first["brand_name"] ?? "Partner Store";
+          final dist = (first["distance_meters"] as num?)?.round() ?? 50;
+          final tag = first["discount_tag"] ?? "Exclusive Deal";
+          await SystemNotificationService().showSystemNotification(
+            id: 2001,
+            title: isArabic ? "📍 $brand على بعد $dist م فقط!" : "📍 $brand is only $dist m away!",
+            body: isArabic
+                ? "$tag على جميع الطلبات. اضغط لفتح قسيمة وفرة بالرقم الوظيفي."
+                : "$tag on all items. Tap to open Wafra voucher with your Worker ID.",
+            payload: first["offer_id"]?.toString(),
+          );
+        }
+      }
+      return res;
+    } catch (_) {
+      return null;
+    }
   }
 }

@@ -4,6 +4,7 @@ import 'package:wafra_app/main.dart';
 void main() {
   testWidgets('Wafra discount app smoke test', (WidgetTester tester) async {
     await tester.pumpWidget(const WafraDiscountApp());
-    expect(find.textContaining('Wafra Discount'), findsOneWidget);
+    expect(find.text('More For Less'), findsOneWidget);
+    expect(find.text('Get Started'), findsOneWidget);
   });
 }

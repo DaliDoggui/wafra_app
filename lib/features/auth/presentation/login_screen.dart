@@ -1,5 +1,7 @@
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/network/api_client.dart';
 import '../../main_layout.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
@@ -17,36 +19,116 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isGoogleLoading = false;
+  bool _isLoading = false;
+
+  void _handleLogin() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isLoading = true);
+
+    final identifier = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    final result = await ApiClient.instance.login(identifier, password);
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (result["success"] == true) {
+      final name = ApiClient.instance.currentUser?['full_name'] ?? 'Civil Servant';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Welcome back, $name!"),
+          backgroundColor: AppColors.primaryBlue,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const MainLayout()),
+        (route) => false,
+      );
+    } else if (result["isPending"] == true) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.hourglass_top_rounded, color: Colors.orange, size: 28),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  "Account Pending Review",
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            "حسابك قيد المراجعة لدى الإدارة.\n\nYour account has been created but is awaiting authorization from the Admin Dashboard. Once approved by the administrator, you can log in immediately.",
+            style: TextStyle(fontSize: 13.5, height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("OK / حسنًا", style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      );
+    } else {
+      final errorMsg = result["message"] ?? "Invalid credentials";
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMsg),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+    }
+  }
 
   void _handleGoogleSignIn() async {
     setState(() => _isGoogleLoading = true);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Row(
-          children: [
-            SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-            ),
-            SizedBox(width: 12),
-            Text("Connecting with Google Account..."),
-          ],
-        ),
-        backgroundColor: AppColors.primaryBlue,
-        duration: Duration(seconds: 2),
-      ),
-    );
+    try {
+      await GoogleSignIn.instance.initialize();
+      final account = await GoogleSignIn.instance.authenticate();
+      final idToken = account.authentication.idToken;
 
-    await Future.delayed(const Duration(milliseconds: 1500));
-    if (!mounted) return;
-    setState(() => _isGoogleLoading = false);
-
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const MainLayout()),
-      (route) => false,
-    );
+      final res = await ApiClient.instance.loginWithGoogle(
+        email: account.email,
+        name: account.displayName,
+        photoUrl: account.photoUrl,
+        idToken: idToken,
+      );
+      if (!mounted) return;
+      setState(() => _isGoogleLoading = false);
+      if (res["success"] == true) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const MainLayout()),
+          (route) => false,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res["message"] ?? "Google Sign-In failed"),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isGoogleLoading = false);
+      final errStr = e.toString();
+      if (!errStr.contains("canceled") && !errStr.contains("cancelled") && !errStr.contains("dismissed")) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Google Sign-In: $errStr"),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -69,11 +151,15 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Logo Top
                 Image.asset(
                   'assets/images/wafra_logo.png',
                   height: 90,
                   fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => const Icon(
+                    Icons.shopping_bag_outlined,
+                    size: 60,
+                    color: AppColors.primaryBlue,
+                  ),
                 ),
                 const SizedBox(height: 20),
 
@@ -96,12 +182,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 28),
 
-                // Email / Phone Field
+                // Worker ID or Email Field
                 TextFormField(
                   controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
-                    labelText: "Email or Phone Number",
-                    hintText: "you@example.com",
+                    labelText: "Worker ID or Email",
+                    hintText: "WF-123456 or name@gov.kw",
+                    prefixIcon: const Icon(Icons.badge_outlined, size: 20, color: AppColors.textSecondary),
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
@@ -114,7 +202,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   validator: (val) {
-                    if (val == null || val.isEmpty) return "Please enter your email or phone";
+                    if (val == null || val.trim().isEmpty) return "Please enter your Worker ID or Email";
                     return null;
                   },
                 ),
@@ -177,15 +265,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 // Log In Button
                 ElevatedButton(
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(builder: (_) => const MainLayout()),
-                        (route) => false,
-                      );
-                    }
-                  },
+                  onPressed: _isLoading ? null : _handleLogin,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryBlue,
                     foregroundColor: Colors.white,
@@ -195,13 +275,19 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    "Log In",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                        )
+                      : const Text(
+                          "Log In",
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
                 // Divider Or Continue With
                 Row(

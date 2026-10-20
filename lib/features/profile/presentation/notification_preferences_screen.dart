@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../../core/localization/app_locale.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../main.dart';
 
 class NotificationPreferencesScreen extends StatefulWidget {
   const NotificationPreferencesScreen({super.key});
@@ -16,19 +18,26 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
 
   @override
   Widget build(BuildContext context) {
+    final isDark = themeModeNotifier.value == ThemeMode.dark;
+    final bgColor = isDark ? const Color(0xFF0F172A) : AppColors.background;
+    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final textCol = isDark ? Colors.white : AppColors.textPrimary;
+    final textMutedCol = isDark ? const Color(0xFF94A3B8) : AppColors.textSecondary;
+    final borderColor = isDark ? const Color(0xFF334155) : Colors.grey.shade200;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: cardBg,
         elevation: 0.5,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, size: 18, color: AppColors.textPrimary),
+          icon: Icon(Icons.arrow_back_ios, size: 18, color: textCol),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          "Notification Preferences",
+        title: Text(
+          isArabic ? "تفضيلات الإشعارات" : "Notification Preferences",
           style: TextStyle(
-            color: AppColors.textPrimary,
+            color: textCol,
             fontWeight: FontWeight.bold,
             fontSize: 18,
           ),
@@ -43,9 +52,9 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
               // Master Notifications Switch
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text(
-                  "Notifications",
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                title: Text(
+                  isArabic ? "الإشعارات العامة" : "Notifications",
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: textCol),
                 ),
                 trailing: Switch(
                   value: _masterNotifications,
@@ -63,33 +72,39 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
 
               const SizedBox(height: 12),
 
-              // Sub-Preferences Card (Matching Screenshot 3)
+              // Sub-Preferences Card
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: cardBg,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade200),
+                  border: Border.all(color: borderColor),
                 ),
                 child: Column(
                   children: [
                     _buildNotifTile(
-                      title: "New Offers",
-                      subtitle: "Get notified about new discounts and deals",
+                      title: isArabic ? "عروض جديدة" : "New Offers",
+                      subtitle: isArabic ? "احصل على إشعارات بالعروض والخصومات الجديدة" : "Get notified about new discounts and deals",
                       value: _newOffers,
+                      textCol: textCol,
+                      textMutedCol: textMutedCol,
                       onChanged: (val) => setState(() => _newOffers = val),
                     ),
-                    const Divider(height: 1),
+                    Divider(height: 1, color: borderColor),
                     _buildNotifTile(
-                      title: "Near Stores",
-                      subtitle: "Get notified when stores are near your location",
+                      title: isArabic ? "متاجر قريبة" : "Near Stores",
+                      subtitle: isArabic ? "تنبيه عند اقترابك من المتاجر الشريكة" : "Get notified when stores are near your location",
                       value: _nearStores,
+                      textCol: textCol,
+                      textMutedCol: textMutedCol,
                       onChanged: (val) => setState(() => _nearStores = val),
                     ),
-                    const Divider(height: 1),
+                    Divider(height: 1, color: borderColor),
                     _buildNotifTile(
-                      title: "Price Drops",
-                      subtitle: "Get notified when prices drop",
+                      title: isArabic ? "تخفيضات الأسعار" : "Price Drops",
+                      subtitle: isArabic ? "تنبيه عند انخفاض الأسعار والخصومات الإضافية" : "Get notified when prices drop",
                       value: _priceDrops,
+                      textCol: textCol,
+                      textMutedCol: textMutedCol,
                       onChanged: (val) => setState(() => _priceDrops = val),
                     ),
                   ],
@@ -98,12 +113,12 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
 
               const Spacer(),
 
-              // Save Button (Capsule Vibrant Blue Button)
+              // Save Button
               ElevatedButton(
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Notification preferences saved successfully!"),
+                    SnackBar(
+                      content: Text(isArabic ? "تم حفظ تفضيلات الإشعارات بنجاح!" : "Notification preferences saved successfully!"),
                       backgroundColor: AppColors.primaryBlue,
                     ),
                   );
@@ -118,9 +133,9 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
                   ),
                   elevation: 0,
                 ),
-                child: const Text(
-                  "Save",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                child: Text(
+                  isArabic ? "حفظ" : "Save",
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
 
@@ -136,6 +151,8 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
     required String title,
     required String subtitle,
     required bool value,
+    required Color textCol,
+    required Color textMutedCol,
     required ValueChanged<bool> onChanged,
   }) {
     return SwitchListTile(
@@ -144,11 +161,11 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
       onChanged: onChanged,
       title: Text(
         title,
-        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary),
+        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: textCol),
       ),
       subtitle: Text(
         subtitle,
-        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+        style: TextStyle(fontSize: 12, color: textMutedCol),
       ),
     );
   }

@@ -1,4 +1,4 @@
-package com.example.wafra_app
+package kw.wafra.app
 
 import io.flutter.embedding.android.FlutterActivity
 

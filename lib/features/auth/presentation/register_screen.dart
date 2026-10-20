@@ -1,4 +1,7 @@
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../main_layout.dart';
 import 'worker_id_verification_screen.dart';
@@ -19,36 +22,107 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirmPasswordController = TextEditingController();
   bool _agreedToTerms = true;
   bool _isGoogleLoading = false;
+  bool _isLoading = false;
+
+  void _handleRegister() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_passwordController.text != _confirmPasswordController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Passwords do not match"), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    final civilId = _workerIdController.text.trim().toUpperCase();
+    final workerIdRegex = RegExp(r'^[A-Z]{2}-\d{6}$');
+    if (!workerIdRegex.hasMatch(civilId)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("الرقم الوظيفي يجب أن يكون بصيغة WF-123456 (حرفين ثم 6 أرقام)"),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final res = await ApiClient.instance.register(
+      civilId: civilId,
+      fullName: _fullNameController.text.trim(),
+      email: _emailController.text.trim(),
+      password: _passwordController.text.trim(),
+    );
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (res["success"] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Account created! Please upload your Worker ID card."),
+          backgroundColor: AppColors.primaryBlue,
+        ),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => WorkerIdVerificationScreen(
+            civilId: civilId,
+            fullName: _fullNameController.text.trim(),
+          ),
+        ),
+      );
+    } else {
+      final msg = res["message"] ?? "Registration failed";
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.red.shade700),
+      );
+    }
+  }
 
   void _handleGoogleSignUp() async {
     setState(() => _isGoogleLoading = true);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Row(
-          children: [
-            SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-            ),
-            SizedBox(width: 12),
-            Text("Registering with Google Account..."),
-          ],
-        ),
-        backgroundColor: AppColors.primaryBlue,
-        duration: Duration(seconds: 2),
-      ),
-    );
+    try {
+      await GoogleSignIn.instance.initialize();
+      final account = await GoogleSignIn.instance.authenticate();
+      final idToken = account.authentication.idToken;
 
-    await Future.delayed(const Duration(milliseconds: 1500));
-    if (!mounted) return;
-    setState(() => _isGoogleLoading = false);
-
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const MainLayout()),
-      (route) => false,
-    );
+      final res = await ApiClient.instance.loginWithGoogle(
+        email: account.email,
+        name: account.displayName,
+        photoUrl: account.photoUrl,
+        idToken: idToken,
+      );
+      if (!mounted) return;
+      setState(() => _isGoogleLoading = false);
+      if (res["success"] == true) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const MainLayout()),
+          (route) => false,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res["message"] ?? "Google Registration failed"),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isGoogleLoading = false);
+      final errStr = e.toString();
+      if (!errStr.contains("canceled") && !errStr.contains("cancelled") && !errStr.contains("dismissed")) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Google Sign-Up: $errStr"),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -150,11 +224,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                 const SizedBox(height: 16),
 
-                _buildInputField("Full Name", "Foulen Ben Foulen", _fullNameController),
+                _buildInputField("Full Name", "e.g. Salem Al-Ahmad", _fullNameController),
                 const SizedBox(height: 12),
-                _buildInputField("Email or Phone Number", "you@example.com", _emailController),
+                _buildInputField("Email Address", "salem@example.com", _emailController),
                 const SizedBox(height: 12),
-                _buildInputField("Worker ID", "ID-123456", _workerIdController),
+                _buildInputField("Worker ID", "WF-123456", _workerIdController, isCivilId: true),
                 const SizedBox(height: 12),
                 _buildInputField("Password", "••••••••", _passwordController, isPassword: true),
                 const SizedBox(height: 12),
@@ -181,16 +255,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                 const SizedBox(height: 18),
 
-                // Continue Button -> Navigates to Worker ID Upload
+                // Submit / Create Account Button
                 ElevatedButton(
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const WorkerIdVerificationScreen()),
-                      );
-                    }
-                  },
+                  onPressed: _isLoading ? null : _handleRegister,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryBlue,
                     foregroundColor: Colors.white,
@@ -200,10 +267,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    "Continue",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text(
+                          "Create Account & Submit ID",
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
                 ),
 
                 const SizedBox(height: 20),
@@ -215,15 +288,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  Widget _buildInputField(String label, String hint, TextEditingController controller, {bool isPassword = false}) {
+  Widget _buildInputField(
+    String label,
+    String hint,
+    TextEditingController controller, {
+    bool isPassword = false,
+    bool isCivilId = false,
+  }) {
     return TextFormField(
       controller: controller,
       obscureText: isPassword,
+      keyboardType: isCivilId ? TextInputType.text : TextInputType.text,
+      textCapitalization: isCivilId ? TextCapitalization.characters : TextCapitalization.none,
+      inputFormatters: isCivilId
+          ? [
+              LengthLimitingTextInputFormatter(9),
+            ]
+          : null,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
         filled: true,
         fillColor: Colors.white,
+        counterText: isCivilId ? "" : null,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey.shade300),
@@ -235,7 +322,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       ),
       validator: (val) {
-        if (val == null || val.isEmpty) return "Field required";
+        if (val == null || val.trim().isEmpty) return "Field required";
+        if (isCivilId) {
+          final clean = val.trim().toUpperCase();
+          final workerIdRegex = RegExp(r'^[A-Z]{2}-\d{6}$');
+          if (!workerIdRegex.hasMatch(clean)) return "Worker ID format must be WF-123456";
+        }
         return null;
       },
     );

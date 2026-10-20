@@ -66,5 +66,13 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Wafra requires camera access to scan discount QR codes and take identification photos.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Wafra requires photo library access to upload profile pictures and civil ID documents.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Wafra uses your location to show the nearest partner shops and exclusive Kuwait discounts.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Wafra uses your location to alert you of nearby store discounts across Kuwait.</string>
 </dict>
 </plist>
